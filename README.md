@@ -8,7 +8,7 @@ Sistem tamamen lokalinizde çalışan şık bir **Web Dashboard** üzerinden yö
 
 - **Merkezi Web Paneli (Dashboard):** Tüm işlemleri komut satırına kod yazmadan, tarayıcınız üzerinden görsel bir arayüzle yönetin.
 - **Yüksek Hızlı Multi-Thread Veri Çekimi:** `ThreadPoolExecutor` kullanılarak zaman aralıkları parçalara (chunk) bölünür ve veriler CPU çekirdek sayınıza göre dinamik olarak paralel indirilir. Binance API limitleri (Spot ve Futures) otomatik gözetilir.
-- **Kusursuz Hassasiyet:** Çekilen veriler mükerrer kayıtlardan arındırılır.
+- **Kusursuz Hassasiyet:** Çekilen veriler mükerrer kayıtlardan arındırılır. Grafikler, yan paneller ve arka plan raporlamaları **6 basamağa (.000000)** kadar fiyat hassasiyetini destekler.
 - **Trade Replay (İşlem Tekrarı):** Piyasada geçmişte yaşanmış devasa fiyat çöküşlerini veya ani yükselişleri saniye saniye canlı grafik, akan emir geçmişi ve alt kısımda senkronize **Hacim (Volume) Histogramı** eşliğinde izleyin.
   - O anki barın detaylı **OHLCV (Açılış, Yüksek, Düşük, Kapanış, Hacim)** verilerini görmek için mouse'unuzu grafikteki mumların üzerine getirmeniz yeterlidir.
   - Video oynatıcı benzeri **İleri / Geri Sarma** butonları.

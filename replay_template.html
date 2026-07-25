@@ -67,7 +67,6 @@
         .chart-section {
             flex: 1;
             position: relative;
-            border-right: 1px solid var(--border);
         }
 
         #chart-container {
@@ -75,8 +74,20 @@
             height: 100%;
         }
 
+        .resizer {
+            width: 4px;
+            background: var(--border);
+            cursor: col-resize;
+            transition: background 0.2s;
+            z-index: 10;
+        }
+
+        .resizer:hover, .resizer:active {
+            background: var(--accent);
+        }
+
         .trades-section {
-            width: 320px;
+            width: 420px;
             display: flex;
             flex-direction: column;
             background: var(--bg-panel);
@@ -86,7 +97,7 @@
             padding: 12px 16px;
             border-bottom: 1px solid var(--border);
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: 1.2fr 0.9fr 1fr 1.3fr;
             font-size: 11px;
             color: var(--text-muted);
             font-weight: 600;
@@ -101,7 +112,7 @@
 
         .trade-row {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: 1.2fr 0.9fr 1fr 1.3fr;
             padding: 4px 16px;
             font-size: 12px;
             font-variant-numeric: tabular-nums;
@@ -263,10 +274,12 @@
             <div id="chart-legend" style="position: absolute; left: 12px; top: 12px; z-index: 10; font-size: 13px; color: #e0e0e0; pointer-events: none; background: rgba(10, 14, 23, 0.7); padding: 8px; border-radius: 6px; display: none; font-variant-numeric: tabular-nums;"></div>
             <div id="chart-container"></div>
         </div>
+        <div class="resizer" id="resizer"></div>
         <div class="trades-section">
             <div class="trades-header">
                 <div>Fiyat(USDT)</div>
                 <div style="text-align: right;">Miktar</div>
+                <div style="text-align: right;">Toplam($)</div>
                 <div style="text-align: right;">Zaman</div>
             </div>
             <div class="trades-list" id="trades-list">
@@ -329,9 +342,9 @@
             <select id="speed-select">
                 <option value="0.1">0.1x (Yavas)</option>
                 <option value="0.5">0.5x</option>
-                <option value="1">1x</option>
+                <option value="1" selected>1x</option>
                 <option value="5">5x</option>
-                <option value="10" selected>10x</option>
+                <option value="10">10x</option>
                 <option value="50">50x</option>
                 <option value="100">100x</option>
             </select>
@@ -359,7 +372,7 @@
         let currentTimeMs = 0;
         
         let isPlaying = false;
-        let playbackSpeed = 10;
+        let playbackSpeed = 1;
         let targetFps = 60;
         let lastFrameTime = 0;
         let lastDrawTime = 0;
@@ -392,6 +405,13 @@
                 bottom: 0,
             },
         });
+        
+        chart.priceScale('right').applyOptions({
+            scaleMargins: {
+                top: 0.1,
+                bottom: 0.25,
+            }
+        });
 
         // Current candle state
         let currentCandle = null;
@@ -416,15 +436,21 @@
             const div = document.createElement('div');
             div.className = `trade-row ${isBuy ? 'buy' : 'sell'}`;
             
-            const p = trade[0].toFixed(6);
-            const q = trade[1].toFixed(2);
+            const p = trade[0];
+            const q = trade[1];
+            const total = p * q;
+            
+            const pStr = p.toFixed(6);
+            const qStr = q.toFixed(2);
+            const totalStr = total.toFixed(2);
             
             const d = new Date(trade[2]);
             const timeStr = formatTime(trade[2]);
             
             div.innerHTML = `
-                <div class="price">${p}</div>
-                <div class="qty">${q}</div>
+                <div class="price">${pStr}</div>
+                <div class="qty">${qStr}</div>
+                <div class="total" style="text-align: right; color: #ccc;">${totalStr}</div>
                 <div class="time">${timeStr}</div>
             `;
             
@@ -655,12 +681,39 @@
             seek(parseFloat(e.target.value));
         });
 
-        // Resize chart
-        window.addEventListener('resize', () => {
-            chart.applyOptions({
-                width: document.querySelector('.chart-section').clientWidth,
-                height: document.querySelector('.chart-section').clientHeight
-            });
+        // Resize chart observer
+        const chartSection = document.querySelector('.chart-section');
+        new ResizeObserver(entries => {
+            if (entries.length === 0 || entries[0].target !== chartSection) return;
+            const newRect = entries[0].contentRect;
+            chart.applyOptions({ width: newRect.width, height: newRect.height });
+        }).observe(chartSection);
+
+        // Panel Resizer Logic
+        const resizerEl = document.getElementById('resizer');
+        const tradesSectionEl = document.querySelector('.trades-section');
+        let isResizing = false;
+
+        resizerEl.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const containerRect = document.querySelector('.main-content').getBoundingClientRect();
+            let newWidth = containerRect.right - e.clientX;
+            if (newWidth < 250) newWidth = 250; // min width
+            if (newWidth > 800) newWidth = 800; // max width
+            tradesSectionEl.style.width = newWidth + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+            }
         });
 
         // Crosshair OHLCV Tooltip
