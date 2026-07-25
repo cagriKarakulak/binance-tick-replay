@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ symbol }} Trade Replay</title>
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0e17;
+            --bg-panel: #131a2a;
+            --border: #1e2a3a;
+            --text-main: #e0e0e0;
+            --text-muted: #667788;
+            --green: #00e676;
+            --red: #ff1744;
+            --accent: #1a73e8;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #0d1321 0%, #141c2e 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .title-area {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .badge {
+            background: var(--accent);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 120px);
+        }
+
+        .chart-section {
+            flex: 1;
+            position: relative;
+            border-right: 1px solid var(--border);
+        }
+
+        #chart-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        .trades-section {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-panel);
+        }
+
+        .trades-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .trades-list {
+            flex: 1;
+            overflow-y: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .trade-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            padding: 4px 16px;
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+            animation: flash 0.3s ease-out;
+        }
+
+        @keyframes flash {
+            0% { background: rgba(255,255,255,0.1); }
+            100% { background: transparent; }
+        }
+
+        .trade-row.buy .price { color: var(--green); }
+        .trade-row.sell .price { color: var(--red); }
+
+        .trade-row .price { font-weight: 600; }
+        .trade-row .qty { text-align: right; color: #ccc; }
+        .trade-row .time { text-align: right; color: var(--text-muted); }
+
+        .controls-section {
+            height: 70px;
+            background: var(--bg-panel);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            gap: 12px;
+        }
+
+        .transport-btns {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .play-btn {
+            background: var(--accent);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s;
+        }
+        
+        .play-btn:active { transform: scale(0.95); }
+        
+        .play-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+        .skip-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            height: 34px;
+            padding: 0 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .skip-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: #3a4a6a;
+        }
+
+        .skip-btn:active { transform: scale(0.95); }
+
+        .skip-btn svg { width: 14px; height: 14px; fill: currentColor; flex-shrink: 0; }
+
+        .progress-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .time-label {
+            font-size: 13px;
+            font-variant-numeric: tabular-nums;
+            color: var(--text-muted);
+            min-width: 75px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .settings-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        select {
+            background: var(--bg-dark);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-family: inherit;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 14, 23, 0.9);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <div id="loading-text">Veriler yukleniyor...</div>
+    </div>
+
+    <div class="header">
+        <div class="title-area">
+            <div class="badge">{{ symbol }}</div>
+            <div style="font-size: 14px; color: #8899aa;">{{ source_title }} Trade Replay</div>
+        </div>
+        <div style="font-size: 13px; color: #8899aa;" id="current-price-display"></div>
+    </div>
+
+    <div class="main-content">
+        <div class="chart-section">
+            <div id="chart-legend" style="position: absolute; left: 12px; top: 12px; z-index: 10; font-size: 13px; color: #e0e0e0; pointer-events: none; background: rgba(10, 14, 23, 0.7); padding: 8px; border-radius: 6px; display: none; font-variant-numeric: tabular-nums;"></div>
+            <div id="chart-container"></div>
+        </div>
+        <div class="trades-section">
+            <div class="trades-header">
+                <div>Fiyat(USDT)</div>
+                <div style="text-align: right;">Miktar</div>
+                <div style="text-align: right;">Zaman</div>
+            </div>
+            <div class="trades-list" id="trades-list">
+                <!-- Trades will appear here -->
+            </div>
+        </div>
+    </div>
+
+    <div class="controls-section">
+        <div class="transport-btns">
+            <button class="skip-btn" onclick="skipTrades(-100)" title="100 islem geri">
+                <svg viewBox="0 0 24 24"><path d="M18 17l-5-5 5-5v10zm-7 0l-5-5 5-5v10z"/></svg>
+                100
+            </button>
+            <button class="skip-btn" onclick="skipTrades(-10)" title="10 islem geri">
+                <svg viewBox="0 0 24 24"><path d="M15 17l-5-5 5-5v10z"/></svg>
+                10
+            </button>
+            <button class="skip-btn" onclick="skipTrades(-1)" title="1 islem geri">
+                <svg viewBox="0 0 24 24"><path d="M15 17l-5-5 5-5v10z"/></svg>
+                1
+            </button>
+
+            <button class="play-btn" id="play-btn">
+                <svg id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                <svg id="icon-pause" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+
+            <button class="skip-btn" onclick="skipTrades(1)" title="1 islem ileri">
+                1
+                <svg viewBox="0 0 24 24"><path d="M9 7l5 5-5 5V7z"/></svg>
+            </button>
+            <button class="skip-btn" onclick="skipTrades(10)" title="10 islem ileri">
+                10
+                <svg viewBox="0 0 24 24"><path d="M9 7l5 5-5 5V7z"/></svg>
+            </button>
+            <button class="skip-btn" onclick="skipTrades(100)" title="100 islem ileri">
+                100
+                <svg viewBox="0 0 24 24"><path d="M6 7l5 5-5 5V7zm7 0l5 5-5 5V7z"/></svg>
+            </button>
+        </div>
+        
+        <div class="progress-container">
+            <div class="time-label" id="time-current">--:--:--</div>
+            <input type="range" id="timeline" min="0" max="100" value="0" step="0.1">
+            <div class="time-label" id="time-end">--:--:--</div>
+        </div>
+
+        <div class="settings-area">
+            <span style="font-size: 12px; color: var(--text-muted);">FPS:</span>
+            <select id="fps-select" style="margin-right: 8px;">
+                <option value="60" selected>Max (60)</option>
+                <option value="30">30</option>
+                <option value="15">15</option>
+                <option value="5">5</option>
+                <option value="1">1</option>
+            </select>
+            
+            <span style="font-size: 12px; color: var(--text-muted);">Hiz:</span>
+            <select id="speed-select">
+                <option value="0.1">0.1x (Yavas)</option>
+                <option value="0.5">0.5x</option>
+                <option value="1">1x</option>
+                <option value="5">5x</option>
+                <option value="10" selected>10x</option>
+                <option value="50">50x</option>
+                <option value="100">100x</option>
+            </select>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const elLoading = document.getElementById('loading');
+        const elTradesList = document.getElementById('trades-list');
+        const elPlayBtn = document.getElementById('play-btn');
+        const elIconPlay = document.getElementById('icon-play');
+        const elIconPause = document.getElementById('icon-pause');
+        const elTimeline = document.getElementById('timeline');
+        const elTimeCurrent = document.getElementById('time-current');
+        const elTimeEnd = document.getElementById('time-end');
+        const elSpeed = document.getElementById('speed-select');
+        const elFps = document.getElementById('fps-select');
+        const elCurrentPrice = document.getElementById('current-price-display');
+
+        // State
+        let allTrades = []; // [p, q, t, m]
+        let startTime = 0;
+        let endTime = 0;
+        let currentTimeMs = 0;
+        
+        let isPlaying = false;
+        let playbackSpeed = 10;
+        let targetFps = 60;
+        let lastFrameTime = 0;
+        let lastDrawTime = 0;
+        let animationFrameId = null;
+        let currentTradeIndex = 0;
+
+        // Chart setup
+        const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
+            layout: { background: { type: 'solid', color: '#0a0e17' }, textColor: '#667788' },
+            grid: { vertLines: { color: '#1e2a3a' }, horzLines: { color: '#1e2a3a' } },
+            timeScale: { timeVisible: true, secondsVisible: true },
+            crosshair: { mode: 0 }
+        });
+        
+        const candleSeries = chart.addCandlestickSeries({
+            upColor: '#00e676', downColor: '#ff1744', 
+            borderUpColor: '#00e676', borderDownColor: '#ff1744',
+            wickUpColor: '#00e676', wickDownColor: '#ff1744',
+            priceFormat: { type: 'price', precision: 6, minMove: 0.000001 }
+        });
+        
+        const volumeSeries = chart.addHistogramSeries({
+            color: '#26a69a',
+            priceFormat: { type: 'volume' },
+            priceScaleId: '', // set as an overlay
+        });
+        chart.priceScale('').applyOptions({
+            scaleMargins: {
+                top: 0.8,
+                bottom: 0,
+            },
+        });
+
+        // Current candle state
+        let currentCandle = null;
+        let candleTimeSec = 0; // The second bucket for the current candle
+        const candleVolumes = {}; // Maps time(sec) to volume
+
+        // Format time
+        function formatTime(ms) {
+            const d = new Date(ms);
+            const h = String(d.getUTCHours()).padStart(2, '0');
+            const m = String(d.getUTCMinutes()).padStart(2, '0');
+            const s = String(d.getUTCSeconds()).padStart(2, '0');
+            const ms_val = String(d.getUTCMilliseconds()).padStart(3, '0');
+            return `${h}:${m}:${s}.${ms_val}`;
+        }
+
+        // Add trade to list
+        function renderTrade(trade) {
+            // trade: [p, q, t, m]
+            const isBuy = !trade[3]; // m=false -> buyer is maker -> buy
+            
+            const div = document.createElement('div');
+            div.className = `trade-row ${isBuy ? 'buy' : 'sell'}`;
+            
+            const p = trade[0].toFixed(6);
+            const q = trade[1].toFixed(2);
+            
+            const d = new Date(trade[2]);
+            const timeStr = formatTime(trade[2]);
+            
+            div.innerHTML = `
+                <div class="price">${p}</div>
+                <div class="qty">${q}</div>
+                <div class="time">${timeStr}</div>
+            `;
+            
+            elTradesList.prepend(div);
+            
+            // Keep only last 50 items to avoid DOM overload
+            if (elTradesList.children.length > 50) {
+                elTradesList.removeChild(elTradesList.lastChild);
+            }
+
+            elCurrentPrice.innerHTML = `<span style="color: ${isBuy ? '#00e676' : '#ff1744'}; font-weight:700; font-size:18px;">${p}</span>`;
+        }
+
+        // Process a single trade for the chart
+        function processTradeForChart(trade) {
+            const p = trade[0];
+            const q = trade[1];
+            const t = trade[2];
+            
+            // Group by second
+            const tradeSecond = Math.floor(t / 1000);
+            
+            if (tradeSecond !== candleTimeSec) {
+                candleTimeSec = tradeSecond;
+                currentCandle = {
+                    time: candleTimeSec,
+                    open: p,
+                    high: p,
+                    low: p,
+                    close: p
+                };
+                candleVolumes[candleTimeSec] = q;
+            } else {
+                currentCandle.high = Math.max(currentCandle.high, p);
+                currentCandle.low = Math.min(currentCandle.low, p);
+                currentCandle.close = p;
+                candleVolumes[candleTimeSec] += q;
+            }
+            
+            candleSeries.update(currentCandle);
+            volumeSeries.update({
+                time: candleTimeSec,
+                value: candleVolumes[candleTimeSec],
+                color: currentCandle.close >= currentCandle.open ? 'rgba(0, 230, 118, 0.5)' : 'rgba(255, 23, 68, 0.5)'
+            });
+        }
+
+        // Core playback loop
+        function tick(timestamp) {
+            if (!lastFrameTime) {
+                lastFrameTime = timestamp;
+                lastDrawTime = timestamp;
+            }
+            
+            // FPS Throttling
+            const msPerFrame = 1000 / targetFps;
+            if (timestamp - lastDrawTime < msPerFrame && targetFps < 60) {
+                animationFrameId = requestAnimationFrame(tick);
+                return;
+            }
+            
+            const deltaMs = timestamp - lastFrameTime;
+            lastFrameTime = timestamp;
+            lastDrawTime = timestamp;
+
+            if (isPlaying) {
+                const simulatedElapsed = deltaMs * playbackSpeed;
+                currentTimeMs += simulatedElapsed;
+                
+                if (currentTimeMs >= endTime) {
+                    currentTimeMs = endTime;
+                    togglePlay(false);
+                }
+                
+                updateUI();
+            }
+            
+            animationFrameId = requestAnimationFrame(tick);
+        }
+
+        function updateUI() {
+            // Process trades up to currentTimeMs
+            let tradesProcessed = 0;
+            while (currentTradeIndex < allTrades.length && allTrades[currentTradeIndex][2] <= currentTimeMs) {
+                const trade = allTrades[currentTradeIndex];
+                processTradeForChart(trade);
+                
+                // Only render to UI if we aren't skipping too fast, or just render the last ones
+                if (tradesProcessed < 10) { // Limit DOM updates per frame
+                    renderTrade(trade);
+                }
+                tradesProcessed++;
+                currentTradeIndex++;
+            }
+            
+            // Update slider & time
+            const progress = (currentTimeMs - startTime) / (endTime - startTime) * 100;
+            elTimeline.value = progress;
+            elTimeCurrent.textContent = formatTime(currentTimeMs);
+        }
+
+        // Seek functionality
+        function seek(percent) {
+            currentTimeMs = startTime + (endTime - startTime) * (percent / 100);
+            
+            // Find correct index
+            currentTradeIndex = 0;
+            while(currentTradeIndex < allTrades.length && allTrades[currentTradeIndex][2] < currentTimeMs) {
+                currentTradeIndex++;
+            }
+            
+            rebuildChartUpToCurrent();
+            elTimeCurrent.textContent = formatTime(currentTimeMs);
+        }
+
+        // Skip N trades forward or backward
+        function skipTrades(n) {
+            if (allTrades.length === 0) return;
+            
+            const wasPlaying = isPlaying;
+            if (wasPlaying) togglePlay(false);
+            
+            // Calculate new index
+            let newIndex = currentTradeIndex + n;
+            newIndex = Math.max(0, Math.min(newIndex, allTrades.length - 1));
+            
+            // If going forward, process each trade so chart updates correctly
+            if (n > 0) {
+                const end = Math.min(currentTradeIndex + n, allTrades.length);
+                for (let i = currentTradeIndex; i < end; i++) {
+                    processTradeForChart(allTrades[i]);
+                    if (i >= end - 10) renderTrade(allTrades[i]); // render last few
+                }
+                currentTradeIndex = end;
+            } else {
+                // Going backward: need to rebuild
+                currentTradeIndex = newIndex;
+                rebuildChartUpToCurrent();
+                // Show a few trades around the new position in the feed
+                elTradesList.innerHTML = '';
+                const feedStart = Math.max(0, newIndex - 10);
+                for (let i = feedStart; i < newIndex; i++) {
+                    renderTrade(allTrades[i]);
+                }
+            }
+            
+            // Update time
+            if (currentTradeIndex < allTrades.length) {
+                currentTimeMs = allTrades[currentTradeIndex][2];
+            } else {
+                currentTimeMs = endTime;
+            }
+            
+            const progress = (currentTimeMs - startTime) / (endTime - startTime) * 100;
+            elTimeline.value = progress;
+            elTimeCurrent.textContent = formatTime(currentTimeMs);
+        }
+
+        function rebuildChartUpToCurrent() {
+            // Generate historical candles quickly
+            const history = [];
+            let tempCandle = null;
+            let tempSec = 0;
+            
+            for (let key in candleVolumes) delete candleVolumes[key];
+            
+            for(let i=0; i<currentTradeIndex; i++) {
+                const t = allTrades[i];
+                const sec = Math.floor(t[2] / 1000);
+                if (sec !== tempSec) {
+                    if(tempCandle) history.push(tempCandle);
+                    tempSec = sec;
+                    tempCandle = {time: sec, open: t[0], high: t[0], low: t[0], close: t[0], volume: t[1]};
+                } else {
+                    tempCandle.high = Math.max(tempCandle.high, t[0]);
+                    tempCandle.low = Math.min(tempCandle.low, t[0]);
+                    tempCandle.close = t[0];
+                    tempCandle.volume += t[1];
+                }
+            }
+            if(tempCandle) history.push(tempCandle);
+            
+            candleSeries.setData(history);
+            
+            const volumeData = [];
+            history.forEach(c => {
+                candleVolumes[c.time] = c.volume;
+                volumeData.push({
+                    time: c.time,
+                    value: c.volume,
+                    color: c.close >= c.open ? 'rgba(0, 230, 118, 0.5)' : 'rgba(255, 23, 68, 0.5)'
+                });
+            });
+            volumeSeries.setData(volumeData);
+            
+            if (history.length > 0) {
+                currentCandle = history[history.length-1];
+                candleTimeSec = currentCandle.time;
+            }
+        }
+
+        function togglePlay(forceState) {
+            isPlaying = forceState !== undefined ? forceState : !isPlaying;
+            if (isPlaying) {
+                elIconPlay.style.display = 'none';
+                elIconPause.style.display = 'block';
+                lastFrameTime = performance.now();
+            } else {
+                elIconPlay.style.display = 'block';
+                elIconPause.style.display = 'none';
+            }
+        }
+
+        // Event Listeners
+        elPlayBtn.addEventListener('click', () => togglePlay());
+        
+        elSpeed.addEventListener('change', (e) => {
+            playbackSpeed = parseFloat(e.target.value);
+        });
+
+        elFps.addEventListener('change', (e) => {
+            targetFps = parseInt(e.target.value);
+        });
+
+        elTimeline.addEventListener('input', (e) => {
+            const wasPlaying = isPlaying;
+            if (wasPlaying) togglePlay(false);
+            seek(parseFloat(e.target.value));
+        });
+
+        // Resize chart
+        window.addEventListener('resize', () => {
+            chart.applyOptions({
+                width: document.querySelector('.chart-section').clientWidth,
+                height: document.querySelector('.chart-section').clientHeight
+            });
+        });
+
+        // Crosshair OHLCV Tooltip
+        const legend = document.getElementById('chart-legend');
+        chart.subscribeCrosshairMove(param => {
+            if (param.point === undefined || !param.time || param.point.x < 0 || param.point.x > chart.clientWidth || param.point.y < 0 || param.point.y > chart.clientHeight) {
+                legend.style.display = 'none';
+            } else {
+                const data = param.seriesData.get(candleSeries);
+                if (data) {
+                    legend.style.display = 'block';
+                    const o = data.open.toFixed(6);
+                    const h = data.high.toFixed(6);
+                    const l = data.low.toFixed(6);
+                    const c = data.close.toFixed(6);
+                    const v = (candleVolumes[data.time] || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    legend.innerHTML = `<span style="color:#8899aa">O</span> ${o} &nbsp; <span style="color:#8899aa">H</span> ${h} &nbsp; <span style="color:#8899aa">L</span> ${l} &nbsp; <span style="color:#8899aa">C</span> ${c} &nbsp; <span style="color:#8899aa">V</span> ${v}`;
+                } else {
+                    legend.style.display = 'none';
+                }
+            }
+        });
+
+        // Initialize Data
+        const TRADES_FILE = '{{ trades_file }}';
+        
+        async function init() {
+            try {
+                const fileParam = TRADES_FILE || new URLSearchParams(window.location.search).get('file') || '';
+                const res = await fetch('/api/trades?file=' + encodeURIComponent(fileParam));
+                const data = await res.json();
+                
+                if (!data || data.length === 0) {
+                    document.getElementById('loading-text').textContent = "Veri bulunamadi.";
+                    return;
+                }
+                
+                allTrades = data;
+                startTime = allTrades[0][2];
+                endTime = allTrades[allTrades.length - 1][2];
+                currentTimeMs = startTime;
+                
+                elTimeCurrent.textContent = formatTime(startTime);
+                elTimeEnd.textContent = formatTime(endTime);
+                
+                elLoading.style.display = 'none';
+                
+                // Initial Chart state (empty, waiting to play)
+                animationFrameId = requestAnimationFrame(tick);
+                
+            } catch (err) {
+                document.getElementById('loading-text').textContent = "Hata: " + err.message;
+            }
+        }
+
+        init();
+
+    </script>
+</body>
+</html>

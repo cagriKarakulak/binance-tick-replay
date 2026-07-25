@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Workspace Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0e17;
+            --bg-panel: #131a2a;
+            --bg-card: #162032;
+            --border: #1e2a3a;
+            --text-main: #e0e0e0;
+            --text-muted: #667788;
+            --accent: #1a73e8;
+            --accent-hover: #1557b0;
+            --success: #00e676;
+            --error: #ff1744;
+            --warning: #ffab40;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 32px;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .page-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #4285f4 0%, #0d47a1 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+        }
+
+        .page-header p {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .layout {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            gap: 32px;
+            align-items: start;
+        }
+
+        /* ===================== LEFT PANEL: Fetch Form ===================== */
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title svg {
+            width: 20px;
+            height: 20px;
+            stroke: var(--accent);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #8899aa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="text"],
+        input[type="datetime-local"],
+        select {
+            width: 100%;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 11px 14px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent);
+        }
+
+        /* datetime-local calendar icon color fix for dark theme */
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.7);
+            cursor: pointer;
+        }
+
+        .time-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .utc-hint {
+            font-size: 11px;
+            color: var(--warning);
+            margin-top: 4px;
+        }
+
+        button {
+            width: 100%;
+            padding: 13px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: none;
+        }
+
+        button svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px rgba(26, 115, 232, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+            transform: none;
+        }
+
+        .progress-box {
+            display: none;
+            margin-top: 20px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px;
+        }
+
+        .progress-bar-bg {
+            height: 5px;
+            background: var(--bg-dark);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #1a73e8, #42a5f5);
+            width: 0%;
+            transition: width 0.4s ease;
+            border-radius: 3px;
+        }
+
+        .progress-text {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .status-msg {
+            margin-top: 12px;
+            font-size: 12px;
+            text-align: center;
+            display: none;
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        .status-msg.success {
+            color: var(--success);
+            background: rgba(0, 230, 118, 0.08);
+            border: 1px solid rgba(0, 230, 118, 0.2);
+        }
+
+        .status-msg.error {
+            color: var(--error);
+            background: rgba(255, 23, 68, 0.08);
+            border: 1px solid rgba(255, 23, 68, 0.2);
+        }
+
+        /* ===================== RIGHT PANEL: Datasets ===================== */
+        .datasets-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .dataset-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .dataset-card:hover {
+            border-color: #2a3a5a;
+        }
+
+        .dataset-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .dataset-symbol {
+            font-weight: 700;
+            font-size: 15px;
+            color: #fff;
+        }
+
+        .dataset-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 5px;
+            text-transform: uppercase;
+        }
+
+        .dataset-badge.futures {
+            background: rgba(26, 115, 232, 0.15);
+            color: #42a5f5;
+            border: 1px solid rgba(26, 115, 232, 0.3);
+        }
+
+        .dataset-badge.spot {
+            background: rgba(0, 230, 118, 0.12);
+            color: var(--success);
+            border: 1px solid rgba(0, 230, 118, 0.25);
+        }
+
+        .dataset-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+
+        .dataset-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .dataset-actions button {
+            flex: 1;
+            padding: 8px 10px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
+        .btn-replay {
+            background: rgba(26, 115, 232, 0.1);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+        }
+
+        .btn-replay:hover {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            stroke: #334455;
+            margin-bottom: 12px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        /* Spinner for loading datasets */
+        .loading-datasets {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .mini-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="page-header">
+        <h1>Crypto Workspace</h1>
+        <p>Veri Cekme, Grafik & Trade Replay Kontrol Paneli</p>
+    </div>
+
+    <div class="layout">
+        <!-- LEFT: Fetch Form -->
+        <div class="panel">
+            <div class="panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                Yeni Veri Cek
+            </div>
+
+            <div class="form-group">
+                <label>Islem Paritesi</label>
+                <input type="text" id="symbol" value="ATOMUSDT" placeholder="Orn: BTCUSDT, ETHUSDT">
+            </div>
+
+            <div class="form-group">
+                <label>Piyasa</label>
+                <select id="source">
+                    <option value="futures">Futures (Vadeli)</option>
+                    <option value="spot">Spot</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Zaman Araligi (UTC)</label>
+                <div class="time-row">
+                    <div>
+                        <input type="datetime-local" id="start-time" value="2025-10-10T20:00">
+                    </div>
+                    <div>
+                        <input type="datetime-local" id="end-time" value="2025-10-10T23:59">
+                    </div>
+                </div>
+                <div class="utc-hint">&#9432; Girilen saatler UTC zaman dilimindedir.</div>
+            </div>
+
+            <button class="btn-primary" id="btn-fetch" onclick="fetchData()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                Verileri Cek
+            </button>
+
+            <div class="progress-box" id="progress-box">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-text">
+                    <span id="progress-desc">Hazirlaniyor...</span>
+                    <span id="progress-pct">0%</span>
+                </div>
+            </div>
+
+            <div class="status-msg" id="status-msg"></div>
+        </div>
+
+        <!-- RIGHT: Saved Datasets -->
+        <div class="datasets-panel">
+            <div class="panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                Oynatmaya Hazir Veriler
+            </div>
+            <div id="datasets-container">
+                <div class="loading-datasets">
+                    <div class="mini-spinner"></div>
+                    <p>Veriler taraniyor...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pollInterval = null;
+
+        function getFormData() {
+            const startInput = document.getElementById('start-time').value; // "2025-10-10T20:00"
+            const endInput = document.getElementById('end-time').value;
+            
+            // Convert datetime-local value to ISO string (append seconds)
+            const startISO = startInput.length === 16 ? startInput + ':00' : startInput;
+            const endISO = endInput.length === 16 ? endInput + ':59' : endInput;
+            
+            return {
+                symbol: document.getElementById('symbol').value.trim().toUpperCase(),
+                source: document.getElementById('source').value,
+                start_time: startISO,
+                end_time: endISO
+            };
+        }
+
+        // ===================== FETCH DATA =====================
+        async function fetchData() {
+            const params = getFormData();
+            if (!params.symbol) {
+                alert("Lutfen bir parite girin.");
+                return;
+            }
+
+            const btnFetch = document.getElementById('btn-fetch');
+            const progressBox = document.getElementById('progress-box');
+            const statusMsg = document.getElementById('status-msg');
+
+            btnFetch.disabled = true;
+            progressBox.style.display = 'block';
+            statusMsg.style.display = 'none';
+            document.getElementById('progress-fill').style.width = '0%';
+            document.getElementById('progress-pct').textContent = '0%';
+            document.getElementById('progress-desc').textContent = 'Veri cekme baslatiliyor...';
+
+            try {
+                await fetch('/api/fetch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params)
+                });
+
+                pollInterval = setInterval(checkProgress, 1000);
+            } catch (e) {
+                alert("Hata: " + e);
+                btnFetch.disabled = false;
+            }
+        }
+
+        async function checkProgress() {
+            try {
+                const res = await fetch('/api/progress');
+                const data = await res.json();
+
+                if (data.status === 'running') {
+                    document.getElementById('progress-fill').style.width = data.pct + '%';
+                    document.getElementById('progress-pct').textContent = Math.round(data.pct) + '%';
+                    document.getElementById('progress-desc').textContent = data.msg || 'Veri cekiliyor...';
+                } else if (data.status === 'finished') {
+                    clearInterval(pollInterval);
+                    document.getElementById('progress-fill').style.width = '100%';
+                    document.getElementById('progress-pct').textContent = '100%';
+                    document.getElementById('progress-desc').textContent = 'Tamamlandi!';
+                    document.getElementById('btn-fetch').disabled = false;
+
+                    const statusMsg = document.getElementById('status-msg');
+                    if (data.error) {
+                        statusMsg.className = 'status-msg error';
+                        statusMsg.textContent = "Hata: " + data.error;
+                    } else {
+                        statusMsg.className = 'status-msg success';
+                        statusMsg.textContent = "Islem basariyla tamamlandi!";
+                    }
+                    statusMsg.style.display = 'block';
+
+                    // Refresh dataset list
+                    loadDatasets();
+                }
+            } catch (e) {
+                console.error("Progress check failed", e);
+            }
+        }
+
+        // ===================== DATASETS LIST =====================
+        async function loadDatasets() {
+            const container = document.getElementById('datasets-container');
+            try {
+                const res = await fetch('/api/datasets');
+                const datasets = await res.json();
+
+                if (datasets.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                            <p>Henuz indirilmis veri yok.<br>Sol panelden veri cekin!</p>
+                        </div>`;
+                    return;
+                }
+
+                let html = '';
+                for (const ds of datasets) {
+                    const badgeClass = ds.source === 'spot' ? 'spot' : 'futures';
+                    const badgeLabel = ds.source === 'spot' ? 'SPOT' : 'FUTURES';
+                    const timeDisplay = ds.end_display
+                        ? `${ds.start_display} &rarr; ${ds.end_display}`
+                        : ds.start_display;
+
+                    html += `
+                    <div class="dataset-card">
+                        <div class="dataset-top">
+                            <span class="dataset-symbol">${ds.symbol}</span>
+                            <span class="dataset-badge ${badgeClass}">${badgeLabel}</span>
+                        </div>
+                        <div class="dataset-meta">
+                            ${timeDisplay}<br>
+                            Dosya boyutu: ${ds.size_mb} MB
+                        </div>
+                        <div class="dataset-actions">
+                            <button class="btn-replay" onclick="openReplay('${ds.filename}', '${ds.symbol}', '${ds.source}')" style="width: 100%;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4V8z"/></svg>
+                                Replay
+                            </button>
+                        </div>
+                    </div>`;
+                }
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = `<div class="empty-state"><p>Veriler yuklenirken hata olustu.</p></div>`;
+            }
+        }
+
+        // ===================== NAVIGATION =====================
+        function openReplay(filename, symbol, source) {
+            window.open(`/replay?file=${encodeURIComponent(filename)}&symbol=${symbol}&source=${source}`, '_blank');
+        }
+
+        // ===================== INIT =====================
+        loadDatasets();
+    </script>
+</body>
+</html>
