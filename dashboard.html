@@ -395,13 +395,13 @@
                 <label>Zaman Araligi (UTC)</label>
                 <div class="time-row">
                     <div>
-                        <input type="datetime-local" id="start-time" value="2025-10-10T20:00">
+                        <input type="datetime-local" id="start-time">
                     </div>
                     <div>
-                        <input type="datetime-local" id="end-time" value="2025-10-10T23:59">
+                        <input type="datetime-local" id="end-time">
                     </div>
                 </div>
-                <div class="utc-hint">&#9432; Girilen saatler UTC zaman dilimindedir.</div>
+                <div class="utc-hint">&#9432; Girilen saatler UTC zaman dilimindedir. (Not: Binance API Tasfiye verilerini son 7 gün, OI verilerini son 30 gün için sınırlandırır)</div>
             </div>
 
             <button class="btn-primary" id="btn-fetch" onclick="fetchData()">
@@ -558,7 +558,7 @@
                             Dosya boyutu: ${ds.size_mb} MB
                         </div>
                         <div class="dataset-actions">
-                            <button class="btn-replay" onclick="openReplay('${ds.filename}', '${ds.symbol}', '${ds.source}')" style="width: 100%;">
+                            <button class="btn-replay" onclick="openReplay('${ds.filename}', '${ds.symbol}', '${ds.source}', '${ds.time_suffix}')" style="width: 100%;">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4V8z"/></svg>
                                 Replay
                             </button>
@@ -572,11 +572,18 @@
         }
 
         // ===================== NAVIGATION =====================
-        function openReplay(filename, symbol, source) {
-            window.open(`/replay?file=${encodeURIComponent(filename)}&symbol=${symbol}&source=${source}`, '_blank');
+        function openReplay(filename, symbol, source, time_suffix) {
+            window.open(`/replay?file=${encodeURIComponent(filename)}&symbol=${symbol}&source=${source}&time_suffix=${time_suffix}`, '_blank');
         }
 
         // ===================== INIT =====================
+        function initDefaults() {
+            const now = new Date();
+            const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24 hours ago
+            document.getElementById('start-time').value = yesterday.toISOString().slice(0, 16);
+            document.getElementById('end-time').value = now.toISOString().slice(0, 16);
+        }
+        initDefaults();
         loadDatasets();
     </script>
 </body>

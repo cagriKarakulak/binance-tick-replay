@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ symbol }} Trade Replay</title>
+    <title>{{ symbol }} Trade Replay Pro</title>
     <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -17,6 +17,8 @@
             --green: #00e676;
             --red: #ff1744;
             --accent: #1a73e8;
+            --oi-color: #ffab40;
+            --cvd-color: #ba68c8;
         }
 
         * {
@@ -93,6 +95,7 @@
             display: flex;
             flex-direction: column;
             background: var(--bg-panel);
+            position: relative;
         }
 
         .trades-header {
@@ -153,6 +156,21 @@
             color: var(--text-muted);
         }
 
+        .whale-glow {
+            background: rgba(255, 235, 59, 0.15) !important;
+            animation: flashWhale 1s ease-out;
+        }
+
+        @keyframes flashWhale {
+            0% {
+                background: rgba(255, 235, 59, 0.6);
+            }
+
+            100% {
+                background: transparent;
+            }
+        }
+
         .controls-section {
             height: 70px;
             background: var(--bg-panel);
@@ -205,27 +223,13 @@
             align-items: center;
             justify-content: center;
             gap: 4px;
-            font-family: inherit;
             font-size: 11px;
             font-weight: 600;
-            transition: all 0.15s;
-            white-space: nowrap;
         }
 
         .skip-btn:hover {
             background: rgba(255, 255, 255, 0.12);
             border-color: #3a4a6a;
-        }
-
-        .skip-btn:active {
-            transform: scale(0.95);
-        }
-
-        .skip-btn svg {
-            width: 14px;
-            height: 14px;
-            fill: currentColor;
-            flex-shrink: 0;
         }
 
         .progress-container {
@@ -254,14 +258,14 @@
             gap: 12px;
         }
 
-        select {
+        select,
+        input[type="number"] {
             background: var(--bg-dark);
             color: var(--text-main);
             border: 1px solid var(--border);
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 6px;
             font-family: inherit;
-            cursor: pointer;
             outline: none;
         }
 
@@ -292,23 +296,96 @@
             }
         }
 
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
 
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background-color: var(--bg-panel);
+            min-width: 150px;
+            box-shadow: 0px -8px 16px 0px rgba(0,0,0,0.5);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 0;
+            z-index: 100;
+            margin-bottom: 8px;
+        }
+        
+        .dropdown-content label {
+            color: var(--text-main);
+            padding: 8px 16px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .dropdown-content label:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .dropdown.show .dropdown-content {
+            display: block;
+        }
+        
+        .dropdown-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            height: 30px;
+            padding: 0 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .dropdown-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .indicator-labels {
+            display: flex;
+            gap: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 20px;
+        }
+
+        .label-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .color-box {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+        }
     </style>
 </head>
 
 <body>
 
-
-
     <div class="loading-overlay" id="loading">
         <div class="spinner"></div>
-        <div id="loading-text">Veriler yukleniyor...</div>
+        <div id="loading-text">Veriler yükleniyor (Buffer)...</div>
+        <div style="font-size:12px; color:#aaa" id="loading-progress"></div>
     </div>
 
     <div class="header">
         <div class="title-area">
             <div class="badge">{{ symbol }}</div>
-            <div style="font-size: 14px; color: #8899aa;">{{ source_title }} Trade Replay</div>
+            <div style="font-size: 14px; color: #8899aa;">{{ source_title }} Trade Replay Pro</div>
         </div>
         <div style="font-size: 13px; color: #8899aa;" id="current-price-display"></div>
     </div>
@@ -322,38 +399,27 @@
         </div>
         <div class="resizer" id="resizer"></div>
         <div class="trades-section">
+            <div style="position: absolute; top:-40px; right: 10px; z-index:20;">
+                <label style="font-size:11px; color:#8899aa; font-weight:bold;">Balina Filtresi ($): </label>
+                <input type="number" id="whale-filter" value="0" style="width: 80px; padding: 4px 8px;"
+                    title="Minimum Islem Hacmi (USDT)">
+            </div>
+
             <div class="trades-header">
-                <div>Fiyat(USDT)</div>
+                <div>Fiyat</div>
                 <div style="text-align: right;">Miktar</div>
                 <div style="text-align: right;">Toplam($)</div>
                 <div style="text-align: right;">Zaman</div>
             </div>
-            <div class="trades-list" id="trades-list">
-                <!-- Trades will appear here -->
-            </div>
+            <div class="trades-list" id="trades-list"></div>
         </div>
     </div>
 
     <div class="controls-section">
         <div class="transport-btns">
-            <button class="skip-btn" onclick="skipTrades(-100)" title="100 islem geri">
-                <svg viewBox="0 0 24 24">
-                    <path d="M18 17l-5-5 5-5v10zm-7 0l-5-5 5-5v10z" />
-                </svg>
-                100
-            </button>
-            <button class="skip-btn" onclick="skipTrades(-10)" title="10 islem geri">
-                <svg viewBox="0 0 24 24">
-                    <path d="M15 17l-5-5 5-5v10z" />
-                </svg>
-                10
-            </button>
-            <button class="skip-btn" onclick="skipTrades(-1)" title="1 islem geri">
-                <svg viewBox="0 0 24 24">
-                    <path d="M15 17l-5-5 5-5v10z" />
-                </svg>
-                1
-            </button>
+            <button class="skip-btn" onclick="skipTrades(-100)" title="100 islem geri">-100</button>
+            <button class="skip-btn" onclick="skipTrades(-10)" title="10 islem geri">-10</button>
+            <button class="skip-btn" onclick="skipTrades(-1)" title="1 islem geri">-1</button>
 
             <button class="play-btn" id="play-btn">
                 <svg id="icon-play" viewBox="0 0 24 24">
@@ -364,24 +430,9 @@
                 </svg>
             </button>
 
-            <button class="skip-btn" onclick="skipTrades(1)" title="1 islem ileri">
-                1
-                <svg viewBox="0 0 24 24">
-                    <path d="M9 7l5 5-5 5V7z" />
-                </svg>
-            </button>
-            <button class="skip-btn" onclick="skipTrades(10)" title="10 islem ileri">
-                10
-                <svg viewBox="0 0 24 24">
-                    <path d="M9 7l5 5-5 5V7z" />
-                </svg>
-            </button>
-            <button class="skip-btn" onclick="skipTrades(100)" title="100 islem ileri">
-                100
-                <svg viewBox="0 0 24 24">
-                    <path d="M6 7l5 5-5 5V7zm7 0l5 5-5 5V7z" />
-                </svg>
-            </button>
+            <button class="skip-btn" onclick="skipTrades(1)" title="1 islem ileri">+1</button>
+            <button class="skip-btn" onclick="skipTrades(10)" title="10 islem ileri">+10</button>
+            <button class="skip-btn" onclick="skipTrades(100)" title="100 islem ileri">+100</button>
         </div>
 
         <div class="progress-container">
@@ -391,33 +442,35 @@
         </div>
 
         <div class="settings-area">
+            <div class="dropdown" id="indicator-dropdown">
+                <button class="dropdown-btn" onclick="document.getElementById('indicator-dropdown').classList.toggle('show')">İndikatörler ▾</button>
+                <div class="dropdown-content">
+                    <label><input type="checkbox" id="cvd-toggle" checked> CVD</label>
+                </div>
+            </div>
             <span style="font-size: 12px; color: var(--text-muted);">FPS:</span>
             <select id="fps-select" style="margin-right: 8px;">
-                <option value="60" selected>Max (60)</option>
+                <option value="60" selected>60</option>
                 <option value="30">30</option>
                 <option value="15">15</option>
-                <option value="5">5</option>
-                <option value="1">1</option>
             </select>
-
             <span style="font-size: 12px; color: var(--text-muted);">Hiz:</span>
             <select id="speed-select">
-                <option value="0.1">0.1x (Yavas)</option>
-                <option value="0.5">0.5x</option>
+                <option value="0.1">0.1x</option>
                 <option value="1" selected>1x</option>
-                <option value="5">5x</option>
                 <option value="10">10x</option>
                 <option value="50">50x</option>
-                <option value="100">100x</option>
                 <option value="250">250x</option>
-                <option value="500">500x</option>
                 <option value="1000">1000x</option>
             </select>
         </div>
-
     </div>
 
     <script>
+        const TRADES_FILE = '{{ trades_file }}';
+        const SYMBOL = '{{ symbol }}';
+        const TIME_SUFFIX = '{{ time_suffix }}';
+
         // DOM Elements
         const elLoading = document.getElementById('loading');
         const elTradesList = document.getElementById('trades-list');
@@ -430,24 +483,47 @@
         const elSpeed = document.getElementById('speed-select');
         const elFps = document.getElementById('fps-select');
         const elCurrentPrice = document.getElementById('current-price-display');
+        const elWhaleFilter = document.getElementById('whale-filter');
+        const chartContainer = document.getElementById('chart-container');
+        const elCvdToggle = document.getElementById('cvd-toggle');
 
         // State
         let allTrades = [];
-        let candleHistory = []; // [p, q, t, m]
+        let liquidations = [];
+        let candleHistory = [];
+        let currentTradeIndex = 0;
 
         let startTime = 0;
-        let endTime = 0;
+        let endTime = 100000;
         let currentTimeMs = 0;
 
         let isPlaying = false;
-        let playbackSpeed = 1;
+        let playbackSpeed = 10;
         let targetFps = 60;
         let lastFrameTime = 0;
-        let lastDrawTime = 0;
         let animationFrameId = null;
-        let currentTradeIndex = 0;
+        let currentCVD = 0;
 
-        // Chart setup
+        // Audio Context for Whale alerts
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playWhalePing() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+
+        // --- CHART SETUP ---
         const chart = LightweightCharts.createChart(document.getElementById('chart-container'), {
             layout: { background: { type: 'solid', color: '#0a0e17' }, textColor: '#667788' },
             grid: { vertLines: { color: '#1e2a3a' }, horzLines: { color: '#1e2a3a' } },
@@ -455,289 +531,167 @@
             crosshair: { mode: 0 }
         });
 
+        // 1. Candlestick
         const candleSeries = chart.addCandlestickSeries({
             upColor: '#00e676', downColor: '#ff1744',
             borderUpColor: '#00e676', borderDownColor: '#ff1744',
             wickUpColor: '#00e676', wickDownColor: '#ff1744',
-            priceFormat: { type: 'price', precision: 6, minMove: 0.000001 }
+            priceFormat: { type: 'price', precision: 5, minMove: 0.00001 }
+        });
+        chart.priceScale('right').applyOptions({
+            scaleMargins: {
+                top: 0.1,
+                bottom: 0.25, // Leave bottom 25% empty for volume/CVD
+            }
         });
 
+        // 2. Volume overlay
         const volumeSeries = chart.addHistogramSeries({
             color: '#26a69a',
             priceFormat: { type: 'volume' },
-            priceScaleId: '', // set as an overlay
+            priceScaleId: '',
         });
-        chart.priceScale('').applyOptions({
-            scaleMargins: {
-                top: 0.8,
-                bottom: 0,
-            },
+        chart.priceScale('').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+
+        // 3. CVD Series
+        const cvdSeries = chart.addLineSeries({
+            color: '#ba68c8', lineWidth: 2, priceScaleId: 'cvd',
+            title: 'CVD'
         });
+        chart.priceScale('cvd').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, visible: false });
 
 
-
-        // Current candle state
         let currentCandle = null;
-        let candleTimeSec = 0; // The second bucket for the current candle
-        const candleVolumes = {}; // Maps time(sec) to volume
-        const candleTradeCounts = {}; // Maps time(sec) to trade count
+        let candleTimeSec = 0;
+        const candleVolumes = {};
+        const candleTradesCount = {};
 
-        // Format time
         function formatTime(ms) {
             const d = new Date(ms);
-            const h = String(d.getUTCHours()).padStart(2, '0');
-            const m = String(d.getUTCMinutes()).padStart(2, '0');
-            const s = String(d.getUTCSeconds()).padStart(2, '0');
-            const ms_val = String(d.getUTCMilliseconds()).padStart(3, '0');
-            return `${h}:${m}:${s}.${ms_val}`;
+            return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}:${String(d.getUTCSeconds()).padStart(2, '0')}`;
         }
 
-        // Add trade to list
-        function renderTrade(trade) {
-            // trade: [p, q, t, m]
-            const isBuy = !trade[3]; // m=false -> buyer is maker -> buy
+        function getMarkerForLiq(liq) {
+            const isLong = liq.side === 'SELL'; // If they sold forcefully, their Long was liquidated
+            return {
+                time: Math.floor(liq.time / 1000),
+                position: isLong ? 'belowBar' : 'aboveBar',
+                color: isLong ? '#ff1744' : '#00e676',
+                shape: isLong ? 'arrowUp' : 'arrowDown',
+                text: `Liq: ${liq.executedQty}`,
+                size: 2
+            };
+        }
 
-            const div = document.createElement('div');
-            div.className = `trade-row ${isBuy ? 'buy' : 'sell'}`;
-
+        function renderTrade(trade, silent = false) {
+            const isBuy = !trade[3];
             const p = trade[0];
             const q = trade[1];
             const total = p * q;
 
-            const pStr = p.toFixed(6);
-            const qStr = q.toFixed(2);
-            const totalStr = total.toFixed(2);
+            const whaleLimit = parseFloat(elWhaleFilter.value) || 0;
+            if (whaleLimit > 0 && total < whaleLimit) return; // Filter out
 
-            const d = new Date(trade[2]);
-            const timeStr = formatTime(trade[2]);
+            const isWhale = whaleLimit > 0 && total >= whaleLimit;
+            if (isWhale && !silent) playWhalePing();
 
+            const div = document.createElement('div');
+            div.className = `trade-row ${isBuy ? 'buy' : 'sell'} ${isWhale ? 'whale-glow' : ''}`;
             div.innerHTML = `
-                <div class="price">${pStr}</div>
-                <div class="qty">${qStr}</div>
-                <div class="total" style="text-align: right; color: #ccc;">${totalStr}</div>
-                <div class="time">${timeStr}</div>
+                <div class="price">${p.toFixed(5)}</div>
+                <div class="qty">${q.toFixed(2)}</div>
+                <div class="total" style="text-align: right; color: #ccc;">${total.toFixed(0)}</div>
+                <div class="time">${formatTime(trade[2])}</div>
             `;
-
             elTradesList.prepend(div);
-
-            // Keep only last 50 items to avoid DOM overload
-            if (elTradesList.children.length > 50) {
-                elTradesList.removeChild(elTradesList.lastChild);
-            }
-
+            if (elTradesList.children.length > 50) elTradesList.removeChild(elTradesList.lastChild);
             elCurrentPrice.innerHTML = `<span style="color: ${isBuy ? '#00e676' : '#ff1744'}; font-weight:700; font-size:18px;">${p}</span>`;
         }
 
-        // Process a single trade for the chart
-        function processTradeForChart(trade) {
-            const p = trade[0];
-            const q = trade[1];
-            const t = trade[2];
-            const isBuy = !trade[3];
 
-            // Group by second
+
+        let liqIndex = 0;
+        let liqMarkers = [];
+
+        function processTradeForChart(trade) {
+            const p = trade[0], q = trade[1], t = trade[2], isBuy = !trade[3];
             const tradeSecond = Math.floor(t / 1000);
 
             if (tradeSecond !== candleTimeSec) {
                 if (currentCandle) {
-                    // Update final state of previous candle before moving to next
                     candleSeries.update(currentCandle);
-                    volumeSeries.update({
-                        time: currentCandle.time,
-                        value: candleVolumes[currentCandle.time],
-                        color: currentCandle.close >= currentCandle.open ? 'rgba(0, 230, 118, 0.5)' : 'rgba(255, 23, 68, 0.5)'
-                    });
+                    volumeSeries.update({ time: currentCandle.time, value: candleVolumes[currentCandle.time], color: currentCandle.close >= currentCandle.open ? 'rgba(0,230,118,0.5)' : 'rgba(255,23,68,0.5)' });
+                    cvdSeries.update({ time: currentCandle.time, value: currentCVD });
                 }
 
                 candleTimeSec = tradeSecond;
-                currentCandle = {
-                    time: candleTimeSec,
-                    open: p,
-                    high: p,
-                    low: p,
-                    close: p,
-                    volume: 0,
-                    buyVolume: 0,
-                    sellVolume: 0
-                };
-                candleHistory.push(currentCandle);
+                currentCandle = { time: candleTimeSec, open: p, high: p, low: p, close: p };
                 candleVolumes[candleTimeSec] = q;
-                candleTradeCounts[candleTimeSec] = 1;
+                candleTradesCount[candleTimeSec] = 1;
             } else {
                 currentCandle.high = Math.max(currentCandle.high, p);
                 currentCandle.low = Math.min(currentCandle.low, p);
                 currentCandle.close = p;
                 candleVolumes[candleTimeSec] += q;
-                candleTradeCounts[candleTimeSec] += 1;
+                candleTradesCount[candleTimeSec] = (candleTradesCount[candleTimeSec] || 0) + 1;
             }
-            if (isBuy) currentCandle.buyVolume += q;
-            else currentCandle.sellVolume += q;
+
+            currentCVD += (isBuy ? q : -q);
+
+            // Check Liquidations
+            let newLiq = false;
+            while (liqIndex < liquidations.length && liquidations[liqIndex].time <= t) {
+                const liqMarker = getMarkerForLiq(liquidations[liqIndex]);
+                liqMarkers.push(liqMarker);
+                newLiq = true;
+                liqIndex++;
+            }
+            if (newLiq) {
+                candleSeries.setMarkers(liqMarkers);
+            }
         }
 
-        function enforceMemoryLimit() {
-            const MAX_CANDLES = 1500;
-            if (candleHistory.length > MAX_CANDLES + 200) {
-                const removed = candleHistory.length - MAX_CANDLES;
-                for (let i = 0; i < removed; i++) {
-                    delete candleVolumes[candleHistory[i].time];
-                    delete candleTradeCounts[candleHistory[i].time];
-                }
-                candleHistory = candleHistory.slice(-MAX_CANDLES);
-
-                candleSeries.setData(candleHistory);
-
-                const volData = [];
-                for (let i = 0; i < candleHistory.length; i++) {
-                    const c = candleHistory[i];
-                    volData.push({
-                        time: c.time,
-                        value: c.volume,
-                        color: c.close >= c.open ? 'rgba(0, 230, 118, 0.5)' : 'rgba(255, 23, 68, 0.5)'
-                    });
-                }
-                volumeSeries.setData(volData);
-
-                return true; // memory limit enforced and data was completely reset
-            }
-            return false;
-        }
-
-        // Core playback loop
         function tick(timestamp) {
-            if (!lastFrameTime) {
-                lastFrameTime = timestamp;
-                lastDrawTime = timestamp;
-            }
-
-            // FPS Throttling
+            if (!lastFrameTime) lastFrameTime = timestamp;
+            const deltaMs = timestamp - lastFrameTime;
             const msPerFrame = 1000 / targetFps;
-            if (timestamp - lastDrawTime < msPerFrame && targetFps < 60) {
+
+            if (deltaMs < msPerFrame && targetFps < 60) {
                 animationFrameId = requestAnimationFrame(tick);
                 return;
             }
 
-            const deltaMs = timestamp - lastFrameTime;
             lastFrameTime = timestamp;
-            lastDrawTime = timestamp;
 
             if (isPlaying) {
-                const simulatedElapsed = deltaMs * playbackSpeed;
-                currentTimeMs += simulatedElapsed;
-
+                currentTimeMs += (deltaMs * playbackSpeed);
                 if (currentTimeMs >= endTime) {
                     currentTimeMs = endTime;
                     togglePlay(false);
                 }
-
                 updateUI();
             }
-
             animationFrameId = requestAnimationFrame(tick);
         }
 
         function updateUI() {
-            // Process trades up to currentTimeMs
             let tradesProcessed = 0;
             let lastTrades = [];
             while (currentTradeIndex < allTrades.length && allTrades[currentTradeIndex][2] <= currentTimeMs) {
                 const trade = allTrades[currentTradeIndex];
                 processTradeForChart(trade);
-
                 lastTrades.push(trade);
-                if (lastTrades.length > 20) {
-                    lastTrades.shift(); // keep memory footprint low
-                }
-
+                if (lastTrades.length > 20) lastTrades.shift();
                 tradesProcessed++;
                 currentTradeIndex++;
             }
 
-            // Only render to UI the last 10 trades of the batch to prevent DOM lag
             for (let i = 0; i < lastTrades.length; i++) {
-                if (i >= lastTrades.length - 10) {
-                    renderTrade(lastTrades[i]);
-                }
+                if (i >= lastTrades.length - 10) renderTrade(lastTrades[i]);
             }
 
-            // Update the chart once per frame for the current ongoing candle
             if (tradesProcessed > 0 && currentCandle) {
-                if (!enforceMemoryLimit()) {
-                    candleSeries.update(currentCandle);
-                    volumeSeries.update({
-                        time: currentCandle.time,
-                        value: candleVolumes[currentCandle.time],
-                        color: currentCandle.close >= currentCandle.open ? 'rgba(0, 230, 118, 0.5)' : 'rgba(255, 23, 68, 0.5)'
-                    });
-                }
-            }
-
-
-            // Update slider & time
-            const progress = (currentTimeMs - startTime) / (endTime - startTime) * 100;
-            elTimeline.value = progress;
-            elTimeCurrent.textContent = formatTime(currentTimeMs);
-        }
-
-        // Seek functionality
-        function seek(percent) {
-            currentTimeMs = startTime + (endTime - startTime) * (percent / 100);
-
-            // Find correct index
-            currentTradeIndex = 0;
-            while (currentTradeIndex < allTrades.length && allTrades[currentTradeIndex][2] < currentTimeMs) {
-                currentTradeIndex++;
-            }
-
-            rebuildChartUpToCurrent();
-            elTimeCurrent.textContent = formatTime(currentTimeMs);
-        }
-
-        // Skip N trades forward or backward
-        function skipTrades(n) {
-            if (allTrades.length === 0) return;
-
-            const wasPlaying = isPlaying;
-            if (wasPlaying) togglePlay(false);
-
-            // Calculate new index
-            let newIndex = currentTradeIndex + n;
-            newIndex = Math.max(0, Math.min(newIndex, allTrades.length - 1));
-
-            // If going forward, process each trade so chart updates correctly
-            if (n > 0) {
-                const end = Math.min(currentTradeIndex + n, allTrades.length);
-                for (let i = currentTradeIndex; i < end; i++) {
-                    processTradeForChart(allTrades[i]);
-                    if (i >= end - 10) renderTrade(allTrades[i]); // render last few
-                }
-                if (currentCandle && currentTradeIndex < end) {
-                    if (!enforceMemoryLimit()) {
-                        candleSeries.update(currentCandle);
-                        volumeSeries.update({
-                            time: currentCandle.time,
-                            value: candleVolumes[currentCandle.time],
-                            color: currentCandle.close >= currentCandle.open ? 'rgba(0, 230, 118, 0.5)' : 'rgba(255, 23, 68, 0.5)'
-                        });
-                    }
-                }
-                currentTradeIndex = end;
-            } else {
-                // Going backward: need to rebuild
-                currentTradeIndex = newIndex;
-                rebuildChartUpToCurrent();
-                // Show a few trades around the new position in the feed
-                elTradesList.innerHTML = '';
-                const feedStart = Math.max(0, newIndex - 10);
-                for (let i = feedStart; i < newIndex; i++) {
-                    renderTrade(allTrades[i]);
-                }
-            }
-
-            // Update time
-            if (currentTradeIndex < allTrades.length) {
-                currentTimeMs = allTrades[currentTradeIndex][2];
-            } else {
-                currentTimeMs = endTime;
+                candleSeries.update(currentCandle);
             }
 
             const progress = (currentTimeMs - startTime) / (endTime - startTime) * 100;
@@ -745,103 +699,211 @@
             elTimeCurrent.textContent = formatTime(currentTimeMs);
         }
 
-        function rebuildChartUpToCurrent() {
-            // Generate historical candles quickly
-            candleHistory = [];
-            let tempCandle = null;
-            let tempSec = 0;
-
-            for (let key in candleVolumes) delete candleVolumes[key];
-            for (let key in candleTradeCounts) delete candleTradeCounts[key];
-
-            for (let i = 0; i < currentTradeIndex; i++) {
-                const t = allTrades[i];
-                const sec = Math.floor(t[2] / 1000);
-                const isBuy = !t[3];
-                if (sec !== tempSec) {
-                    if (tempCandle) candleHistory.push(tempCandle);
-                    tempSec = sec;
-                    tempCandle = { time: sec, open: t[0], high: t[0], low: t[0], close: t[0], volume: t[1], buyVolume: isBuy ? t[1] : 0, sellVolume: isBuy ? 0 : t[1] };
-                    candleTradeCounts[sec] = 1;
-                } else {
-                    tempCandle.high = Math.max(tempCandle.high, t[0]);
-                    tempCandle.low = Math.min(tempCandle.low, t[0]);
-                    tempCandle.close = t[0];
-                    tempCandle.volume += t[1];
-                    if (isBuy) tempCandle.buyVolume += t[1];
-                    else tempCandle.sellVolume += t[1];
-                    candleTradeCounts[sec] += 1;
-                }
-            }
-            if (tempCandle) candleHistory.push(tempCandle);
-
-            // Limit memory for initial or rebuilt chart
-            if (candleHistory.length > 1500) {
-                candleHistory = candleHistory.slice(-1500);
-            }
-
-            candleSeries.setData(candleHistory);
-
-            const volumeData = [];
-            candleHistory.forEach(c => {
-                candleVolumes[c.time] = c.volume;
-                volumeData.push({
-                    time: c.time,
-                    value: c.volume,
-                    color: c.close >= c.open ? 'rgba(0, 230, 118, 0.5)' : 'rgba(255, 23, 68, 0.5)'
-                });
-            });
-            volumeSeries.setData(volumeData);
-
-            if (candleHistory.length > 0) {
-                currentCandle = candleHistory[candleHistory.length - 1];
-                candleTimeSec = currentCandle.time;
-            }
-
-
+        // --- BUFFERING & INITIALIZATION ---
+        async function loadAuxData() {
+            const resLiq = await fetch(`/api/liquidations?symbol=${SYMBOL}&time_suffix=${TIME_SUFFIX}`);
+            liquidations = await resLiq.json();
         }
 
+        async function init() {
+            try {
+                // Fetch first chunk
+                const resTrades = await fetch(`/api/trades?file=${encodeURIComponent(TRADES_FILE)}&offset=0&limit=50000`);
+                const chunk = await resTrades.json();
+
+                if (!chunk || chunk.length === 0) {
+                    document.getElementById('loading-text').textContent = "Veri bulunamadi.";
+                    return;
+                }
+
+                allTrades = chunk;
+                startTime = allTrades[0][2];
+                endTime = allTrades[allTrades.length - 1][2]; // Temp end time
+                currentTimeMs = startTime;
+
+                elTimeCurrent.textContent = formatTime(startTime);
+                elTimeEnd.textContent = formatTime(endTime);
+
+                document.getElementById('loading-text').textContent = "Ek Veriler Yukleniyor...";
+                await loadAuxData();
+
+                elLoading.style.display = 'none';
+                animationFrameId = requestAnimationFrame(tick);
+
+                // Start background chunk fetcher
+                fetchRemainingChunks(50000);
+
+            } catch (err) {
+                document.getElementById('loading-text').textContent = "Hata: " + err.message;
+            }
+        }
+
+        async function fetchRemainingChunks(startOffset) {
+            let offset = startOffset;
+            let limit = 50000;
+            let loadingUI = document.getElementById('loading-progress');
+
+            while (true) {
+                try {
+                    const res = await fetch(`/api/trades?file=${encodeURIComponent(TRADES_FILE)}&offset=${offset}&limit=${limit}`);
+                    const chunk = await res.json();
+                    if (chunk.length === 0) break; // Finished
+
+                    allTrades = allTrades.concat(chunk);
+                    endTime = allTrades[allTrades.length - 1][2];
+                    elTimeEnd.textContent = formatTime(endTime);
+                    offset += limit;
+
+                    // Show a little indicator if we are playing near the buffer edge
+                    // We can just silently buffer.
+                } catch (e) {
+                    break;
+                }
+            }
+            console.log("All chunks loaded into memory. Total trades:", allTrades.length);
+        }
+
+        // --- CONTROLS ---
         function togglePlay(forceState) {
             isPlaying = forceState !== undefined ? forceState : !isPlaying;
             if (isPlaying) {
                 elIconPlay.style.display = 'none';
                 elIconPause.style.display = 'block';
                 lastFrameTime = performance.now();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
             } else {
                 elIconPlay.style.display = 'block';
                 elIconPause.style.display = 'none';
             }
         }
 
-        // Event Listeners
         elPlayBtn.addEventListener('click', () => togglePlay());
-
-        elSpeed.addEventListener('change', (e) => {
-            playbackSpeed = parseFloat(e.target.value);
+        elSpeed.addEventListener('change', (e) => playbackSpeed = parseFloat(e.target.value));
+        elFps.addEventListener('change', (e) => targetFps = parseInt(e.target.value));
+        elCvdToggle.addEventListener('change', (e) => {
+            cvdSeries.applyOptions({ visible: e.target.checked });
         });
 
-        elFps.addEventListener('change', (e) => {
-            targetFps = parseInt(e.target.value);
+        window.addEventListener('click', function(event) {
+            if (!event.target.matches('.dropdown-btn')) {
+                var dropdowns = document.getElementsByClassName("dropdown");
+                for (var i = 0; i < dropdowns.length; i++) {
+                    var openDropdown = dropdowns[i];
+                    if (openDropdown.classList.contains('show')) {
+                        openDropdown.classList.remove('show');
+                    }
+                }
+            }
         });
+
+        function seek(percent) {
+            currentTimeMs = startTime + (endTime - startTime) * (percent / 100);
+            currentCVD = 0;
+            liqIndex = 0;
+            oiIndex = 0;
+            liqMarkers = [];
+            // We would need to rebuild chart data up to currentTimeMs to be accurate
+
+            // Now rebuild chart up to this index
+            rebuildChartUpToCurrent();
+
+            // Sync OI and Liquidations
+            while (oiIndex < openInterestData.length && openInterestData[oiIndex].timestamp <= currentTimeMs) oiIndex++;
+            while (liqIndex < liquidations.length && liquidations[liqIndex].time <= currentTimeMs) liqIndex++;
+
+            elTimeCurrent.textContent = formatTime(currentTimeMs);
+        }
+
+        function rebuildChartUpToCurrent() {
+            candleHistory = [];
+            for (let key in candleVolumes) delete candleVolumes[key];
+            for (let key in candleTradesCount) delete candleTradesCount[key];
+            currentCVD = 0;
+
+            let tempSec = 0;
+            let tempCandle = null;
+            const cvdMap = {};
+
+            currentTradeIndex = 0;
+            while (currentTradeIndex < allTrades.length && allTrades[currentTradeIndex][2] <= currentTimeMs) {
+                const t = allTrades[currentTradeIndex];
+                const sec = Math.floor(t[2] / 1000);
+                const isBuy = !t[3];
+
+                if (sec !== tempSec) {
+                    if (tempCandle) candleHistory.push(tempCandle);
+                    tempSec = sec;
+                    tempCandle = { time: sec, open: t[0], high: t[0], low: t[0], close: t[0], volume: t[1] };
+                } else {
+                    tempCandle.high = Math.max(tempCandle.high, t[0]);
+                    tempCandle.low = Math.min(tempCandle.low, t[0]);
+                    tempCandle.close = t[0];
+                    tempCandle.volume += t[1];
+                }
+
+                candleVolumes[sec] = (candleVolumes[sec] || 0) + t[1];
+                candleTradesCount[sec] = (candleTradesCount[sec] || 0) + 1;
+
+                let cvdDelta = isBuy ? t[1] : -t[1];
+                currentCVD += cvdDelta;
+                cvdMap[sec] = currentCVD;
+                
+                currentTradeIndex++;
+            }
+            if (tempCandle) candleHistory.push(tempCandle);
+
+            // Update global state for next ticks
+            candleTimeSec = tempSec;
+            currentCandle = tempCandle ? { ...tempCandle } : null;
+
+            if (candleHistory.length > 2000) candleHistory = candleHistory.slice(-2000);
+
+            candleSeries.setData(candleHistory);
+
+            const volumeData = [];
+            const cvdData = [];
+            candleHistory.forEach(c => {
+                candleVolumes[c.time] = c.volume;
+                volumeData.push({ time: c.time, value: c.volume, color: c.close >= c.open ? 'rgba(0,230,118,0.5)' : 'rgba(255,23,68,0.5)' });
+                cvdData.push({ time: c.time, value: cvdMap[c.time] });
+            });
+            volumeSeries.setData(volumeData);
+            cvdSeries.setData(cvdData);
+
+            if (candleHistory.length > 0) {
+                currentCandle = candleHistory[candleHistory.length - 1];
+                candleTimeSec = currentCandle.time;
+            }
+
+            liqIndex = 0;
+            liqMarkers = [];
+            while (liqIndex < liquidations.length && liquidations[liqIndex].time <= currentTimeMs) {
+                liqMarkers.push(getMarkerForLiq(liquidations[liqIndex]));
+                liqIndex++;
+            }
+            candleSeries.setMarkers(liqMarkers);
+
+
+            elTradesList.innerHTML = '';
+            let lastTrades = [];
+            for (let i = Math.max(0, currentTradeIndex - 20); i < currentTradeIndex; i++) {
+                lastTrades.push(allTrades[i]);
+            }
+            for (let i = 0; i < lastTrades.length; i++) {
+                renderTrade(lastTrades[i], true);
+            }
+        }
 
         elTimeline.addEventListener('input', (e) => {
             if (isPlaying) togglePlay(false);
             const percent = parseFloat(e.target.value);
-            const tempTimeMs = startTime + (endTime - startTime) * (percent / 100);
-            elTimeCurrent.textContent = formatTime(tempTimeMs);
+            currentTimeMs = startTime + (endTime - startTime) * (percent / 100);
+            elTimeCurrent.textContent = formatTime(currentTimeMs);
         });
 
         elTimeline.addEventListener('change', (e) => {
             seek(parseFloat(e.target.value));
         });
-
-        // Resize chart observer
-        const chartSection = document.querySelector('.chart-section');
-        new ResizeObserver(entries => {
-            if (entries.length === 0 || entries[0].target !== chartSection) return;
-            const newRect = entries[0].contentRect;
-            chart.applyOptions({ width: newRect.width, height: newRect.height });
-        }).observe(chartSection);
 
         // Panel Resizer Logic
         const resizerEl = document.getElementById('resizer');
@@ -853,16 +915,14 @@
             document.body.style.cursor = 'col-resize';
             e.preventDefault();
         });
-
         document.addEventListener('mousemove', (e) => {
             if (!isResizing) return;
             const containerRect = document.querySelector('.main-content').getBoundingClientRect();
             let newWidth = containerRect.right - e.clientX;
-            if (newWidth < 250) newWidth = 250; // min width
-            if (newWidth > 800) newWidth = 800; // max width
+            if (newWidth < 250) newWidth = 250;
+            if (newWidth > 800) newWidth = 800;
             tradesSectionEl.style.width = newWidth + 'px';
         });
-
         document.addEventListener('mouseup', () => {
             if (isResizing) {
                 isResizing = false;
@@ -870,80 +930,60 @@
             }
         });
 
-        // Crosshair OHLCV Tooltip
-        const legend = document.getElementById('chart-legend');
-        let lastHoverHtml = '';
+        // Resize chart observer
+        const chartSection = document.querySelector('.chart-section');
+        new ResizeObserver(entries => {
+            if (entries.length === 0 || entries[0].target !== chartSection) return;
+            const newRect = entries[0].contentRect;
+            chart.applyOptions({ width: newRect.width, height: newRect.height });
+        }).observe(chartSection);
 
+        const elLegend = document.getElementById('chart-legend');
         chart.subscribeCrosshairMove(param => {
-            if (param.point === undefined || !param.time || param.point.x < 0 || param.point.x > chart.clientWidth || param.point.y < 0 || param.point.y > chart.clientHeight) {
-                if (lastHoverHtml !== '') {
-                    legend.style.display = 'none';
-                    lastHoverHtml = '';
-                }
-            } else {
-                const data = param.seriesData.get(candleSeries);
-                if (data) {
-                    const o = data.open.toFixed(6);
-                    const h = data.high.toFixed(6);
-                    const l = data.low.toFixed(6);
-                    const c = data.close.toFixed(6);
-                    const v = (candleVolumes[data.time] || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    const tc = candleTradeCounts[data.time] || 0;
-
-                    let html = `<span style="color:#8899aa">O</span> ${o} &nbsp; <span style="color:#8899aa">H</span> ${h} &nbsp; <span style="color:#8899aa">L</span> ${l} &nbsp; <span style="color:#8899aa">C</span> ${c} &nbsp; <span style="color:#8899aa">V</span> ${v} &nbsp; <span style="color:#8899aa">İşlem</span> ${tc}`;
-
-
-                    if (html !== lastHoverHtml) {
-                        legend.style.display = 'block';
-                        legend.innerHTML = html;
-                        lastHoverHtml = html;
-                    }
-                } else {
-                    if (lastHoverHtml !== '') {
-                        legend.style.display = 'none';
-                        lastHoverHtml = '';
-                    }
-                }
+            if (param.point === undefined || !param.time || param.point.x < 0 || param.point.y < 0) {
+                elLegend.style.display = 'none';
+                return;
             }
+
+            const candleData = param.seriesData.get(candleSeries);
+            const cvdData = param.seriesData.get(cvdSeries);
+            
+            if (!candleData) {
+                elLegend.style.display = 'none';
+                return;
+            }
+
+            elLegend.style.display = 'block';
+            
+            const o = candleData.open.toFixed(4);
+            const h = candleData.high.toFixed(4);
+            const l = candleData.low.toFixed(4);
+            const c = candleData.close.toFixed(4);
+            
+            const v = (candleVolumes[param.time] || 0).toFixed(2);
+            const tc = candleTradesCount[param.time] || 0;
+            const cvdVal = cvdData ? cvdData.value.toFixed(2) : '0.00';
+            
+            elLegend.innerHTML = `O: <span style="color:#fff">${o}</span> | H: <span style="color:#fff">${h}</span> | L: <span style="color:#fff">${l}</span> | C: <span style="color:#fff">${c}</span><br>
+                                  Vol: <span style="color:#fff">${v}</span> | Trades: <span style="color:#fff">${tc}</span> | CVD: <span style="color:#ba68c8">${cvdVal}</span>`;
         });
 
-        // Initialize Data
-        const TRADES_FILE = '{{ trades_file }}';
-
-        async function init() {
-            try {
-                const fileParam = TRADES_FILE || new URLSearchParams(window.location.search).get('file') || '';
-
-                const resTrades = await fetch('/api/trades?file=' + encodeURIComponent(fileParam));
-                const data = await resTrades.json();
-
-                if (!data || data.length === 0) {
-                    document.getElementById('loading-text').textContent = "Veri bulunamadi.";
-                    return;
-                }
-
-                allTrades = data;
-
-
-                startTime = allTrades[0][2];
-                endTime = allTrades[allTrades.length - 1][2];
-                currentTimeMs = startTime;
-
-                elTimeCurrent.textContent = formatTime(startTime);
-                elTimeEnd.textContent = formatTime(endTime);
-
-                elLoading.style.display = 'none';
-
-                // Initial Chart state (empty, waiting to play)
-                animationFrameId = requestAnimationFrame(tick);
-
-            } catch (err) {
-                document.getElementById('loading-text').textContent = "Hata: " + err.message;
-            }
+        function skipTrades(count) {
+            if (isPlaying) togglePlay(false);
+            
+            if (allTrades.length === 0) return;
+            
+            currentTradeIndex += count;
+            if (currentTradeIndex < 0) currentTradeIndex = 0;
+            if (currentTradeIndex >= allTrades.length) currentTradeIndex = allTrades.length - 1;
+            
+            currentTimeMs = allTrades[currentTradeIndex][2];
+            const percent = ((currentTimeMs - startTime) / (endTime - startTime)) * 100;
+            elTimeline.value = percent;
+            seek(percent);
         }
 
         init();
-
     </script>
 </body>
 

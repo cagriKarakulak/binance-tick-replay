@@ -10,7 +10,6 @@ import os
 import concurrent.futures
 import threading
 from datetime import datetime, timezone
-
 import argparse
 
 # Global state for multithreading
@@ -41,8 +40,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Generate unique filenames based on the timestamps (e.g. 20251010_2000_2359)
 time_suffix = f"{START_DT.strftime('%Y%m%d_%H%M')}_{END_DT.strftime('%Y%m%d_%H%M')}"
-RAW_TRADES_CSV = os.path.join(SCRIPT_DIR, f"{SYMBOL_LOWER}_futures_aggtrades_{time_suffix}.csv")
-FUTURES_1S_CSV = os.path.join(SCRIPT_DIR, f"{SYMBOL_LOWER}_futures_1s_{time_suffix}.csv")
+RAW_TRADES_PARQUET = os.path.join(SCRIPT_DIR, f"{SYMBOL_LOWER}_futures_aggtrades_{time_suffix}.parquet")
+FUTURES_1S_PARQUET = os.path.join(SCRIPT_DIR, f"{SYMBOL_LOWER}_futures_1s_{time_suffix}.parquet")
+LIQUIDATIONS_PARQUET = os.path.join(SCRIPT_DIR, f"{SYMBOL_LOWER}_futures_liquidations_{time_suffix}.parquet")
+OI_PARQUET = os.path.join(SCRIPT_DIR, f"{SYMBOL_LOWER}_futures_oi_{time_suffix}.parquet")
 
 
 def fetch_chunk(symbol, chunk_start, chunk_end, chunk_id, total_chunks):
@@ -72,7 +73,6 @@ def fetch_chunk(symbol, chunk_start, chunk_end, chunk_id, total_chunks):
             continue
 
         if resp.status_code == 429:
-            # Rate limit - bekle
             with progress_lock:
                 print(f"  [Parca {chunk_id}/{total_chunks}] Rate limit (429)! 10 saniye bekleniyor...")
             time.sleep(10)
@@ -100,12 +100,9 @@ def fetch_chunk(symbol, chunk_start, chunk_end, chunk_id, total_chunks):
         with progress_lock:
             total_requests += 1
             fetched_trades_count += len(data)
-            
-            # Ilerleme raporu (her 20 istekte bir)
             if total_requests % 20 == 0:
                 trade_time = datetime.fromtimestamp(data[-1]["T"] / 1000, tz=timezone.utc)
-                print(f"  Istek #{total_requests:>4} | Toplam Islem: {fetched_trades_count:>8,} | "
-                      f"Son Zaman: {trade_time.strftime('%H:%M:%S')} UTC")
+                print(f"  Istek #{total_requests:>4} | Toplam Islem: {fetched_trades_count:>8,} | Son Zaman: {trade_time.strftime('%H:%M:%S')} UTC")
 
         last_time = data[-1]["T"]
         if len(data) < 1000:
@@ -113,8 +110,6 @@ def fetch_chunk(symbol, chunk_start, chunk_end, chunk_id, total_chunks):
         else:
             current_start = last_time
 
-        # Futures API aggTrades rate is 20 weight. Very strict. 
-        # So wait much longer than spot.
         time.sleep(0.35)
         retry_count = 0
         
@@ -122,22 +117,15 @@ def fetch_chunk(symbol, chunk_start, chunk_end, chunk_id, total_chunks):
 
 
 def fetch_aggtrades(symbol, start_ms, end_ms):
-    """Binance Futures aggTrades endpoint'inden parcali/paralel sekilde tum islemleri ceker."""
     global total_requests, fetched_trades_count
     total_requests = 0
     fetched_trades_count = 0
     
     cpu_count = os.cpu_count() or 2
-    cpu_half = max(1, cpu_count // 2)
-    max_workers = min(cpu_half, 3)
-        
-    chunk_size_ms = 30 * 60 * 1000 # 30 mins
+    max_workers = min(max(1, cpu_count // 2), 3)
+    chunk_size_ms = 30 * 60 * 1000 
     
-    print(f"\n  Zaman araligi: {START_DT} -> {END_DT}")
-    print(f"  Toplam sure: {(end_ms - start_ms) / 1000} saniye")
-    print(f"  Thread Sayisi: {max_workers} (CPU: {cpu_count})")
-    print(f"  Strateji: {chunk_size_ms/60000:.0f} dakikalik parcalarla paralel cekim\n")
-
+    print(f"\n[1] AggTrades Cekiliyor (Paralel)...")
     chunks = []
     curr = start_ms
     while curr < end_ms:
@@ -150,47 +138,74 @@ def fetch_aggtrades(symbol, start_ms, end_ms):
         futures = []
         for i, (c_start, c_end) in enumerate(chunks):
             futures.append(executor.submit(fetch_chunk, symbol, c_start, c_end, i+1, len(chunks)))
-            
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             if res:
                 all_trades.extend(res)
                 
-    # Sort by time
     if all_trades:
         all_trades.sort(key=lambda x: x["T"])
-                
     return all_trades
 
 
-def trades_to_1s_ohlcv(trades_list, start_ms, end_ms):
-    """Ham islem verisini 1 sanyelik OHLCV mumlara donusturur."""
+def fetch_liquidations(symbol, start_ms, end_ms):
+    print(f"\n[2] Liquidations (Tasfiyeler) Cekiliyor...")
+    url = "https://fapi.binance.com/fapi/v1/allForceOrders"
+    all_liqs = []
+    curr = start_ms
+    while curr < end_ms:
+        params = {"symbol": symbol, "startTime": curr, "endTime": end_ms, "limit": 1000}
+        resp = requests.get(url, params=params)
+        if resp.status_code != 200:
+            break
+        data = resp.json()
+        if not data:
+            break
+        all_liqs.extend(data)
+        curr = data[-1]["time"] + 1
+        time.sleep(0.5)
+    return all_liqs
 
+
+def fetch_oi(symbol, start_ms, end_ms):
+    print(f"\n[3] Open Interest Cekiliyor...")
+    url = "https://fapi.binance.com/futures/data/openInterestHist"
+    all_oi = []
+    curr = start_ms
+    while curr < end_ms:
+        params = {"symbol": symbol, "period": "5m", "startTime": curr, "endTime": end_ms, "limit": 500}
+        resp = requests.get(url, params=params)
+        if resp.status_code != 200:
+            break
+        data = resp.json()
+        if not data:
+            break
+        all_oi.extend(data)
+        curr = data[-1]["timestamp"] + 1
+        time.sleep(0.5)
+    return all_oi
+
+
+def trades_to_1s_ohlcv(trades_list, start_ms, end_ms):
     if not trades_list:
         return None
 
-    # DataFrame olustur
     df = pd.DataFrame(trades_list)
-    # Mükerrer verileri (ayni islem ID'ye sahip olanlari) sil
-    initial_len = len(df)
     df.drop_duplicates(subset=["a"], inplace=True)
-    if len(df) < initial_len:
-        print(f"  Bilgi: {initial_len - len(df)} adet mükerrer islem silindi.")
 
     df["T"] = pd.to_datetime(df["T"], unit="ms", utc=True)
     df["p"] = df["p"].astype(float)
     df["q"] = df["q"].astype(float)
-    df["m"] = df["m"].astype(bool)  # True = buyer is maker (market sell)
+    df["m"] = df["m"].astype(bool)
 
-    # Ham veriyi kaydet
-    print(f"\n  Ham islem verisi kaydediliyor ({len(df)} islem)...")
+    # Save raw as Parquet
+    print(f"\n  Ham islem verisi Parquet olarak kaydediliyor ({len(df)} islem)...")
     raw_save = df.copy()
-    raw_save["T_str"] = raw_save["T"].astype(str)
-    raw_save[["a", "p", "q", "f", "l", "T_str", "m"]].to_csv(RAW_TRADES_CSV, index=False)
-    print(f"  Kaydedildi: {RAW_TRADES_CSV}")
+    raw_save["T_ms"] = raw_save["T"].astype('int64') // 10**6
+    raw_save[["a", "p", "q", "f", "l", "T_ms", "m"]].to_parquet(RAW_TRADES_PARQUET, index=False)
+    print(f"  Kaydedildi: {RAW_TRADES_PARQUET}")
 
-    # 1s OHLCV olustur
-    print("\n  1 sanyelik OHLCV mumlara donusturuluyor...")
+    print("\n  1 saniyelik OHLCV mumlara donusturuluyor...")
     df.set_index("T", inplace=True)
 
     ohlcv = pd.DataFrame()
@@ -200,16 +215,12 @@ def trades_to_1s_ohlcv(trades_list, start_ms, end_ms):
     ohlcv["close"] = df["p"].resample("1s").last()
     ohlcv["volume"] = df["q"].resample("1s").sum()
 
-    # Alis/Satis ayirimi
-    # m=True -> buyer is maker -> market SELL (satis baskisi)
-    # m=False -> seller is maker -> market BUY (alis baskisi)
     sell_vol = df[df["m"] == True]["q"].resample("1s").sum()
     buy_vol = df[df["m"] == False]["q"].resample("1s").sum()
     ohlcv["sell_volume"] = sell_vol
     ohlcv["buy_volume"] = buy_vol
     ohlcv["trades_count"] = df["p"].resample("1s").count()
 
-    # NaN satirlari (islem olmayan saniyeler) onceki kapanis ile doldur
     ohlcv["open"] = ohlcv["open"].ffill()
     ohlcv["high"] = ohlcv["high"].ffill()
     ohlcv["low"] = ohlcv["low"].ffill()
@@ -217,7 +228,6 @@ def trades_to_1s_ohlcv(trades_list, start_ms, end_ms):
     ohlcv[["volume", "sell_volume", "buy_volume", "trades_count"]] = \
         ohlcv[["volume", "sell_volume", "buy_volume", "trades_count"]].fillna(0)
 
-    # Zaman araligini filtrele
     start_dt = pd.Timestamp(start_ms, unit="ms", tz="UTC")
     end_dt = pd.Timestamp(end_ms, unit="ms", tz="UTC")
     ohlcv = ohlcv[(ohlcv.index >= start_dt) & (ohlcv.index <= end_dt)]
@@ -231,57 +241,36 @@ def trades_to_1s_ohlcv(trades_list, start_ms, end_ms):
 
 def main():
     print("=" * 65)
-    print("   Futures AggTrades -> 1s OHLCV")
-    print(f"  Tarih : 10 Ekim 2025")
-    print(f"  Saat  : 20:00:00 - 23:59:59 UTC")
+    print(f"  Futures Data Fetcher: {SYMBOL}")
     print("=" * 65)
 
-    # 1) AggTrades cek
-    print("\n[1/3] Futures aggTrades cekilyor...")
     trades = fetch_aggtrades(SYMBOL, START_MS, END_MS)
-
     if not trades:
         print("\nHATA: Islem verisi cekilemedi!")
         return
 
-    print(f"\n  Toplam {len(trades):,} islem cekildi.")
-
-    # 2) 1s OHLCV'ye donustur
-    print("\n[2/3] 1s OHLCV donusumu...")
     ohlcv = trades_to_1s_ohlcv(trades, START_MS, END_MS)
+    if ohlcv is not None and len(ohlcv) > 0:
+        ohlcv.to_parquet(FUTURES_1S_PARQUET, index=False)
+        print(f"  Futures 1s OHLCV Parquet kaydedildi: {FUTURES_1S_PARQUET}")
 
-    if ohlcv is None or len(ohlcv) == 0:
-        print("\nHATA: OHLCV donusumu basarisiz!")
-        return
+    liqs = fetch_liquidations(SYMBOL, START_MS, END_MS)
+    if liqs:
+        df_liqs = pd.DataFrame(liqs)
+        df_liqs.to_parquet(LIQUIDATIONS_PARQUET, index=False)
+        print(f"  Tasfiyeler Parquet kaydedildi: {len(liqs)} satir.")
+    else:
+        print("  Tasfiye verisi bulunamadi.")
 
-    # CSV kaydet
-    ohlcv.to_csv(FUTURES_1S_CSV, index=False)
-    print(f"\n  Futures 1s OHLCV kaydedildi: {FUTURES_1S_CSV}")
+    ois = fetch_oi(SYMBOL, START_MS, END_MS)
+    if ois:
+        df_oi = pd.DataFrame(ois)
+        df_oi.to_parquet(OI_PARQUET, index=False)
+        print(f"  Open Interest Parquet kaydedildi: {len(ois)} satir.")
+    else:
+        print("  Open Interest verisi bulunamadi.")
 
-    # 3) Ozet
-    print("\n[3/3] OZET")
-    print("=" * 65)
-    print(f"  Toplam islem sayisi  : {len(trades):,}")
-    print(f"  Toplam 1s mum sayisi : {len(ohlcv):,}")
-    print(f"  Ilk zaman            : {ohlcv['open_time'].iloc[0]}")
-    print(f"  Son zaman            : {ohlcv['open_time'].iloc[-1]}")
-    print(f"  Acilis fiyati        : {ohlcv['close'].iloc[0]:.6f} USDT")
-    print(f"  Kapanis fiyati       : {ohlcv['close'].iloc[-1]:.6f} USDT")
-    print(f"  En dusuk             : {ohlcv['low'].min():.6f} USDT")
-    print(f"  En yuksek            : {ohlcv['high'].max():.6f} USDT")
-
-    change = ((ohlcv['close'].iloc[-1] / ohlcv['close'].iloc[0]) - 1) * 100
-    print(f"  Degisim              : {change:+.3f}%")
-
-    # Alim/Satim istatistikleri
-    total_buy = ohlcv['buy_volume'].sum()
-    total_sell = ohlcv['sell_volume'].sum()
-    total_vol = total_buy + total_sell
-    print(f"\n  Toplam hacim         : {total_vol:,.0f} XRP")
-    print(f"  Alis hacmi           : {total_buy:,.0f} XRP ({total_buy/total_vol*100:.1f}%)")
-    print(f"  Satis hacmi          : {total_sell:,.0f} XRP ({total_sell/total_vol*100:.1f}%)")
-    print("=" * 65)
-
+    print("\nTum islemler basariyla tamamlandi!")
 
 if __name__ == "__main__":
     main()

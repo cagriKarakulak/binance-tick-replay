@@ -7,13 +7,16 @@ Sistem tamamen lokalinizde çalışan şık bir **Web Dashboard** üzerinden yö
 ## Özellikler
 
 - **Merkezi Web Paneli (Dashboard):** Tüm işlemleri komut satırına kod yazmadan, tarayıcınız üzerinden görsel bir arayüzle yönetin.
-- **Yüksek Hızlı Multi-Thread Veri Çekimi:** `ThreadPoolExecutor` kullanılarak zaman aralıkları parçalara (chunk) bölünür ve veriler CPU çekirdek sayınıza göre dinamik olarak paralel indirilir. Binance API limitleri (Spot ve Futures) otomatik gözetilir.
-- **Kusursuz Hassasiyet:** Çekilen veriler mükerrer kayıtlardan arındırılır. Grafikler, yan paneller ve arka plan raporlamaları **6 basamağa (.000000)** kadar fiyat hassasiyetini destekler.
+- **FastAPI & DuckDB Altyapısı:** Ultra hızlı Parquet dosya okuma işlemleri ve bellek içi veri yönetimi sayesinde devasa tik verilerinde bile tarayıcıyı dondurmadan yüksek hızda işlem yapabilme.
+- **Yüksek Hızlı Multi-Thread Veri Çekimi:** `ThreadPoolExecutor` kullanılarak zaman aralıkları parçalara (chunk) bölünür ve veriler CPU çekirdek sayınıza göre dinamik olarak paralel indirilir. Binance API limitleri otomatik gözetilir.
+- **Kusursuz Hassasiyet:** Çekilen veriler mükerrer kayıtlardan arındırılır. Grafikler, yan paneller ve arka plan raporlamaları yüksek fiyat hassasiyetini destekler.
 - **Trade Replay (İşlem Tekrarı):** Piyasada geçmişte yaşanmış devasa fiyat çöküşlerini veya ani yükselişleri saniye saniye canlı grafik, akan emir geçmişi ve alt kısımda senkronize **Hacim (Volume) Histogramı** eşliğinde izleyin.
-  - O anki barın detaylı **OHLCV (Açılış, Yüksek, Düşük, Kapanış, Hacim)** verilerini görmek için mouse'unuzu grafikteki mumların üzerine getirmeniz yeterlidir.
-  - Video oynatıcı benzeri **İleri / Geri Sarma** butonları.
-  - Ayarlanabilir **Oynatma Hızı** (0.1x'den 100x'e kadar) ve **Grafik FPS Kontrolü**.
-- **Akıllı Veri Yönetimi:** İndirilen tüm veriler "Oynatmaya Hazır Veriler" listesinde otomatik olarak belirir. İstediğiniz zaman geçmiş bir aralığı tek tıkla açabilirsiniz.
+  - O anki barın detaylı **OHLCV, Toplam İşlem Sayısı (Trades) ve Kümülatif Hacim Deltası (CVD)** verilerini görmek için mouse'unuzu grafikteki mumların üzerine getirmeniz yeterlidir.
+  - Alt paneldeki menüden **CVD (Kümülatif Hacim Deltası)** göstergesi isteğe bağlı olarak tek tıkla açılıp kapatılabilir.
+  - Gelişmiş tasarım sayesinde sert fiyat hareketlerinde fiyat barları ile hacim barları hiçbir zaman birbirinin içine geçmez, daima okunaklı kalır.
+  - Video oynatıcı benzeri **İleri / Geri Sarma** butonları ve slider ile dilediğiniz zamana anında atlama.
+  - Ayarlanabilir **Oynatma Hızı** (0.1x'den 1000x'e kadar) ve **Grafik FPS Kontrolü**.
+- **Akıllı Veri Yönetimi:** İndirilen veriler "Oynatmaya Hazır Veriler" listesinde otomatik olarak belirir. İstediğiniz zaman geçmiş bir aralığı tek tıkla açabilirsiniz.
 
 ## Kurulum
 
@@ -51,10 +54,10 @@ Bu komutu girdiğinizde arka planda lokal bir sunucu başlar ve varsayılan tara
 
 ## Dosya Yapısı
 
-- `app.py`: Ana web sunucusu (Dashboard API'leri ve Rotaları).
+- `app.py`: Ana FastAPI sunucusu, DuckDB veritabanı entegrasyonu ve API Rotaları.
 - `dashboard.html`: Ana kontrol panelinin arayüz kodları.
-- `replay_template.html`: Trade Replay oynatıcısının arayüzü ve animasyon mantığı.
-- `fetch_spot_aggtrades.py` & `fetch_futures_aggtrades.py`: Binance API'sinden veri çeken ve CSV'ye kaydeden arka plan işleyicileri.
+- `replay_template.html`: Trade Replay oynatıcısının arayüzü, gelişmiş charting (LightweightCharts) ve animasyon mantığı.
+- `fetch_spot_aggtrades.py` & `fetch_futures_aggtrades.py`: Binance API'sinden paralel (multithreading) veri çeken arka plan işleyicileri.
 
 ## Yasal Uyarı
 
