@@ -1,8 +1,3 @@
-"""
-Binance Futures XRPUSDT - AggTrades verisi cekip 1s OHLCV mumlara donusturme
-Tarih: 10 Ekim 2025, 20:00 - 23:59 UTC
-"""
-
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
@@ -96,6 +91,8 @@ def fetch_chunk(symbol, chunk_start, chunk_end, chunk_id, total_chunks):
             return chunk_trades
 
         if not data:
+            with progress_lock:
+                print(f"  [Parca {chunk_id}/{total_chunks}] Veri bos dondu! URL: {resp.url}")
             break
 
         chunk_trades.extend(data)
@@ -234,7 +231,7 @@ def trades_to_1s_ohlcv(trades_list, start_ms, end_ms):
 
 def main():
     print("=" * 65)
-    print("  XRPUSDT Futures AggTrades -> 1s OHLCV")
+    print("   Futures AggTrades -> 1s OHLCV")
     print(f"  Tarih : 10 Ekim 2025")
     print(f"  Saat  : 20:00:00 - 23:59:59 UTC")
     print("=" * 65)

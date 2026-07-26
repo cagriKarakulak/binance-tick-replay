@@ -8,6 +8,7 @@ sys.stderr.reconfigure(encoding='utf-8')
 import os
 import re
 import glob
+import gzip
 import json
 import subprocess
 import threading
@@ -25,6 +26,9 @@ task_state = {
     'msg': '',
     'error': None
 }
+
+# In-memory cache: filename -> gzipped JSON bytes
+_trades_cache = {}
 
 
 def scan_datasets():
@@ -111,20 +115,26 @@ def run_fetch_task(symbol, source, start_time, end_time):
             if not line:
                 continue
             
-            # Parse progress: "Istek #  20 | Islem:   20,000 | Zaman: 21:13:02 UTC | %30.4"
-            if "Istek #" in line and "%" in line:
+            # Parse progress: "Istek #  20 | Toplam Islem:   20,000 | Son Zaman: 21:13:02 UTC"
+            if "Istek #" in line:
                 try:
                     parts = line.split("|")
-                    pct_str = parts[-1].strip().replace("%", "")
-                    task_state['pct'] = float(pct_str)
+                    if "%" in line:
+                        pct_str = parts[-1].strip().replace("%", "")
+                        task_state['pct'] = float(pct_str)
+                    else:
+                        # Fake progress loop 10 -> 90 to show it's alive
+                        current_pct = task_state['pct']
+                        task_state['pct'] = current_pct + 2 if current_pct < 90 else 10
+                        
                     task_state['msg'] = parts[1].strip() + " - " + parts[2].strip()
                 except Exception:
                     task_state['msg'] = line
             else:
                 if "HATA" in line or "Error" in line:
                     task_state['msg'] = line
-                elif "Kaydedildi" in line:
-                    task_state['msg'] = "Dosyalar kaydediliyor..."
+                elif "Kaydedildi" in line or "OHLCV" in line:
+                    task_state['msg'] = line
                     task_state['pct'] = 99
 
         process.wait()
@@ -140,23 +150,40 @@ def run_fetch_task(symbol, source, start_time, end_time):
 
 
 def prepare_replay_data(filename):
-    """Load a specific aggtrades CSV and return JSON for the replay player."""
+    """Load a specific aggtrades CSV and return gzip-compressed JSON for the replay player.
+    Results are cached in memory so subsequent loads are instant."""
+    if filename in _trades_cache:
+        return _trades_cache[filename]
+
     csv_path = os.path.join(SCRIPT_DIR, filename)
     
     if not os.path.exists(csv_path):
         return None
-        
+
+    print(f"[Cache] {filename} ilk kez yukleniyor...")
     df = pd.read_csv(csv_path)
     timestamps_ms = pd.to_datetime(df["T_str"], format='mixed', utc=True).astype('int64') // 10**6
     
-    df_json = pd.DataFrame({
-        'p': df['p'].astype(float),
-        'q': df['q'].astype(float),
-        't': timestamps_ms,
-        'm': df['m'].astype(bool)
-    })
+    # Build compact list and serialize
+    p = df['p'].astype(float).values
+    q = df['q'].astype(float).values
+    t = timestamps_ms.values
+    m = df['m'].astype(bool).values
     
-    return json.dumps(df_json.values.tolist()).encode('utf-8')
+    # Build list with round() to reduce JSON size
+    rows = []
+    for i in range(len(p)):
+        rows.append([round(float(p[i]), 8), round(float(q[i]), 4), int(t[i]), bool(m[i])])
+    
+    raw_json = json.dumps(rows).encode('utf-8')
+    compressed = gzip.compress(raw_json, compresslevel=4)
+    print(f"[Cache] {filename} yuklendi. Ham: {len(raw_json)//1024}KB -> Gzip: {len(compressed)//1024}KB")
+    
+    _trades_cache[filename] = compressed
+    return compressed
+
+
+
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
@@ -216,12 +243,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if data:
                 self.send_response(200)
                 self.send_header('Content-type', 'application/json')
+                self.send_header('Content-Encoding', 'gzip')
+                self.send_header('Content-Length', str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
             else:
                 self.send_response(404)
                 self.end_headers()
-                self.wfile.write(b'[]')
+
         else:
             self.send_response(404)
             self.end_headers()
